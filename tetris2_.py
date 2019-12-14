@@ -1,8 +1,9 @@
-from __future__ import annotations
 import sys, pygame
 from shapes import *
 from pprint import pprint as print
 import random
+from typing import *
+
 pygame.init()
 
 size = width, height = 500, 1000
@@ -45,8 +46,11 @@ class Part:
   def __repr__(self):
     return str(self)
 
+  def __eq__(self, other):
+    return self.x == other.x and self.y == other.y
+
 class Shape:
-  def __init__(self, shape_description:List[List[int]]):
+  def __init__(self, shape_description:List[List[int]], grid: List[List[int]]):
     shape:List[List[Part]] = [[] for i in range(len(shape_description))]
     color = random.choice(colors)
     for i in range(len(shape_description)):
@@ -57,10 +61,15 @@ class Shape:
           part = Part((j + (len(row) % rows), i), color=color)
           shape[i].append(part)
     self.shape = shape
+    self.grid = grid
 
   @property
   def active(self) -> bool:
-    return not self.collides_with_bottom()
+    return not self.collides_with_bottom() 
+
+  @property
+  def flat_shape(self) -> List[Part]:
+    return sum(self.shape, [])
 
   def _execute_fn_for_all_parts(self, fn: Callable):
     for row in self.shape:
@@ -70,6 +79,10 @@ class Shape:
   def _find_lowest_y(self) -> int:
     bottom_row = self.shape[-1]
     return bottom_row[0].y
+
+  def _find_lowest_row(self) -> List[Part]:
+    bottom_row = self.shape[-1]
+    return bottom_row
 
   def _find_most_left_x(self) -> int:
     lefts = [rows[0].x  for rows in self.shape]
@@ -92,14 +105,29 @@ class Shape:
   def move_left(self):
     self._execute_fn_for_all_parts(Part.move_left) if not self.collides_with_left() else None
 
-
   def rotate(self):
     pass
 
-  def future(self, movement: int, rotation: int):
-    pass
+  def _future(self, axis: str,  movement: int, rotation: int = 0):
+    # rotation 0 means no rotation, other possible values are 1 for clockwise and -1 for counterclockwise
+    flat_shape = self.flat_shape
+    if axis == "x" and movement == 1: # down
+      pass
+    elif axis == "y" and movement == 1: # right
+      pass
+    elif axis == "y" and movement == -1: # left
+      pass
 
-  def collides_with(self, other: Shape) -> bool:
+    
+  def collides_with(self, grid: List[List[int]], axis:str, movement: int, rotation: int) -> bool:
+    # remove self from grid
+    flat_shape = self.flat_shape
+    for part in flat_shape:
+      grid[part.y][part.x] = 0
+    
+    future_shape = self._future(movement, rotation) 
+    # calculate future position and rotation
+    # check if future self will collide with anything
     pass
 
   def collides_with_bottom(self) -> bool:
@@ -115,7 +143,7 @@ class Shape:
 class Field:
   def __init__(self):
     self.grid = [[0 for i in range(cols)] for j in range(rows)]
-    first_shape = Shape(shape_description = T)
+    first_shape = Shape(shape_description = T, grid= self.grid)
     self.shapes:List[Shape] = [first_shape]
     self.current_shape = first_shape
 
@@ -133,7 +161,7 @@ class Field:
       shape.draw()
 
   def add_random_shape(self):
-    shape = Shape(shape_description=random.choice(possible_shapes))
+    shape = Shape(shape_description=random.choice(possible_shapes), grid= self.grid)
     self.current_shape = shape
     self.shapes.append(shape)
 
@@ -148,6 +176,15 @@ class Field:
   def move_current_shape_right(self):
     self.current_shape.move_right()
 
+  def udpate_grid(self):
+    self.grid = [[0 for i in range(cols)] for j in range(rows)]
+    for shape in self.shapes:
+      flat_shape = shape.flat_shape
+      for part in flat_shape:
+        self.grid[part.y][part.x] = 1
+    for shape in self.shapes:
+      shape.grid = self.grid
+
 if __name__ == "__main__":
   field = Field()
   FALLEVENT, t, trail = pygame.USEREVENT+1, 250, []
@@ -155,7 +192,8 @@ if __name__ == "__main__":
   while True:
     if pygame.event.get(pygame.QUIT): 
       sys.exit()
-    
+
+    field.udpate_grid()
     keys = pygame.key.get_pressed()
     if keys[pygame.K_LEFT]:
       field.move_current_shape_left()
@@ -163,13 +201,13 @@ if __name__ == "__main__":
       field.move_current_shape_right()
     elif keys[pygame.K_DOWN]:
       field.move_curent_shape_down()
-    
-    screen.fill(black)
-    field.draw_grid()
-    
+
     for event in pygame.event.get():
       if event.type == FALLEVENT:
         field.move_curent_shape_down()
+
+    screen.fill(black)
+    field.draw_grid()
     
     field.draw_shapes()
     clock.tick(30)
